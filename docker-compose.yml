@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # MongoDB (Optional)
+  mongodb:
+    image: mongo:7
+    container_name: thumbnail-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: thumbnail-generator
+    networks:
+      - thumbnail-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: thumbnail-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - BASE_URL=http://localhost:5000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - USE_AI_GENERATION=${USE_AI_GENERATION:-true}
+      - MONGODB_URI=mongodb://mongodb:27017/thumbnail-generator
+    depends_on:
+      - mongodb
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/generated:/app/generated
+    networks:
+      - thumbnail-network
+
+  # Frontend React App
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: thumbnail-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000/api
+    depends_on:
+      - backend
+    networks:
+      - thumbnail-network
+
+networks:
+  thumbnail-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local
